@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars for local plans. Never commit real values --
+# CI supplies these via TF_VAR_* from GitHub Environment secrets.
+
+app_name       = "finance-tracker"
+region         = "lhr"
+image_tag      = "abc123def456"
+backend_image  = "ghcr.io/OWNER/REPO/backend"
+frontend_image = "ghcr.io/OWNER/REPO/frontend"
+cors_origins   = "https://finance-tracker-staging-web.fly.dev"
+
+# Supplied as secrets, shown here only to document the interface:
+# fly_api_token = "..."
+# database_url  = "postgresql+asyncpg://..."
+# secret_key    = "..."

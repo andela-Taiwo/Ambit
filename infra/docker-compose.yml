@@ -1,0 +1,58 @@
+# Local development stack. Run from the repo root:
+#   docker compose -f infra/docker-compose.yml up --build
+#
+# Host ports are configurable so the stack does not collide with other
+# services already running on the machine; override in .env, e.g.
+#   DB_HOST_PORT=55432 BACKEND_HOST_PORT=8010
+name: finance-tracker
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finance}
+      POSTGRES_DB: ${POSTGRES_DB:-finance}
+    ports:
+      - '${DB_HOST_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-finance} -d ${POSTGRES_DB:-finance}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-finance}:${POSTGRES_PASSWORD:-finance}@db:5432/${POSTGRES_DB:-finance}
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-not-for-real-use}
+      CORS_ORIGINS: http://localhost:${FRONTEND_HOST_PORT:-8080},http://localhost:5173
+    # Migrations run on start so a fresh clone needs no manual step.
+    command: >
+      sh -c "python -m app.db.migrate &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - '${BACKEND_HOST_PORT:-8000}:8000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:${BACKEND_HOST_PORT:-8000}
+    ports:
+      - '${FRONTEND_HOST_PORT:-8080}:8080'
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

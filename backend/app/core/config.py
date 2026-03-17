@@ -1,0 +1,113 @@
+"""Application settings.
+
+Config is environment-variable driven and validated at import time, so a
+misconfigured deployment fails to boot instead of failing later at request
+time (plan Section 6).
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic.fields import FieldInfo
+from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+from pydantic_settings.sources import PydanticBaseSettingsSource
+
+AppEnv = Literal["local", "test", "ci", "staging", "production"]
+
+#: Settings read from the environment as `a, b, c` rather than a JSON array.
+COMMA_SEPARATED_FIELDS = frozenset({"cors_origins"})
+
+
+class _CommaSeparatedEnvSource(EnvSettingsSource):
+    """Env source that leaves designated list fields as raw strings.
+
+    Returning the string unchanged hands normalisation to the field validator,
+    which splits on commas.
+    """
+
+    def prepare_field_value(
+        self,
+        field_name: str,
+        field: FieldInfo,
+        value: object,
+        value_is_complex: bool,
+    ) -> object:
+        if field_name in COMMA_SEPARATED_FIELDS and isinstance(value, str):
+            return value
+        return super().prepare_field_value(field_name, field, value, value_is_complex)
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    app_env: AppEnv = "local"
+    log_level: str = "INFO"
+
+    database_url: str = Field(..., description="Async SQLAlchemy DSN")
+    secret_key: SecretStr = Field(..., min_length=16)
+
+    access_token_ttl_seconds: int = 900
+    refresh_token_ttl_seconds: int = 1_209_600
+
+    cors_origins: list[str] = Field(default_factory=list)
+    sentry_dsn: str | None = None
+
+    @field_validator("database_url")
+    @classmethod
+    def _require_async_driver(cls, value: str) -> str:
+        if not value.startswith("postgresql+asyncpg://"):
+            raise ValueError("database_url must use the postgresql+asyncpg:// driver")
+        return value
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_comma_separated(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Read list-valued settings as comma-separated strings, not JSON.
+
+        pydantic-settings otherwise JSON-decodes complex types straight from the
+        environment, which would reject the plain `a,b` form used in .env files
+        and deployment config before any validator could normalise it.
+        """
+        return (
+            init_settings,
+            _CommaSeparatedEnvSource(settings_cls),
+            dotenv_settings,
+            file_secret_settings,
+        )
+
+    @model_validator(mode="after")
+    def _forbid_wildcard_cors_outside_local(self) -> Settings:
+        if "*" in self.cors_origins and self.app_env in ("staging", "production"):
+            raise ValueError("wildcard CORS origin is not allowed in staging or production")
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Cached settings accessor; call `.cache_clear()` in tests."""
+    return Settings()

@@ -1,0 +1,130 @@
+name: Deploy production
+
+# Production deploys are tag-triggered and gated on a manual approval in the
+# `production` GitHub Environment. Images are PROMOTED from staging, never
+# rebuilt, so the artifact that passed staging is the one that ships.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to promote (12-char commit SHA)'
+        required: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  promote:
+    name: Promote staging images
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: resolve
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            echo "image_tag=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify images exist before promoting
+        run: |
+          for svc in backend frontend; do
+            docker manifest inspect \
+              "${REGISTRY}/${IMAGE_PREFIX}/${svc}:${{ steps.resolve.outputs.image_tag }}" >/dev/null
+          done
+
+  deploy:
+    name: Terraform apply + migrate (production)
+    runs-on: ubuntu-latest
+    needs: promote
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record current tag for rollback
+        run: |
+          echo "Rollback target (previous): ${{ vars.PRODUCTION_CURRENT_TAG }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deploying: ${{ needs.promote.outputs.image_tag }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.10.3'
+
+      - name: Terraform init
+        working-directory: infra/terraform/production
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        working-directory: infra/terraform/production
+        run: terraform plan -input=false -out=tfplan
+        env:
+          TF_VAR_image_tag: ${{ needs.promote.outputs.image_tag }}
+          TF_VAR_fly_api_token: ${{ secrets.FLY_API_TOKEN }}
+          TF_VAR_database_url: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          TF_VAR_secret_key: ${{ secrets.PRODUCTION_SECRET_KEY }}
+
+      - name: Terraform apply
+        working-directory: infra/terraform/production
+        run: terraform apply -input=false -auto-approve tfplan
+        env:
+          TF_VAR_image_tag: ${{ needs.promote.outputs.image_tag }}
+          TF_VAR_fly_api_token: ${{ secrets.FLY_API_TOKEN }}
+          TF_VAR_database_url: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          TF_VAR_secret_key: ${{ secrets.PRODUCTION_SECRET_KEY }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.5.11'
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          uv python install 3.12
+          uv sync --frozen
+          uv run python -m app.db.migrate
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          SECRET_KEY: ${{ secrets.PRODUCTION_SECRET_KEY }}
+          APP_ENV: production
+
+  smoke:
+    name: Production smoke tests
+    runs-on: ubuntu-latest
+    needs: [promote, deploy]
+    steps:
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "${{ vars.PRODUCTION_API_URL }}/health"; then exit 0; fi
+            sleep 5
+          done
+          echo "production /health did not respond -- consider rollback" >&2
+          exit 1
+
+      - name: Readiness check
+        run: curl -sf "${{ vars.PRODUCTION_API_URL }}/ready"

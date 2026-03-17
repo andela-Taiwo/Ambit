@@ -1,0 +1,6 @@
+# Remote state backend. Copy to backend.hcl and fill in, then:
+#   terraform init -backend-config=backend.hcl
+bucket = "REPLACE-with-your-state-bucket"
+key    = "finance-tracker/production/terraform.tfstate"
+region = "eu-west-2"
+encrypt = true
