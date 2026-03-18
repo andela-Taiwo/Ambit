@@ -2,7 +2,7 @@
 
 Expense management, budgeting and multi-currency investment tracking.
 
-Full engineering plan: [`PLAM.md`](./PLAM.md). Architecture decisions:
+Full engineering plan: [`PLAN.md`](./PLAN.md). Architecture decisions:
 [`docs/adr/`](./docs/adr/).
 
 **Current phase: Phase 0 — foundations, environments & CI/CD skeleton (complete).**
