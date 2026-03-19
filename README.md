@@ -5,7 +5,7 @@ Expense management, budgeting and multi-currency investment tracking.
 Full engineering plan: [`PLAN.md`](./PLAN.md). Architecture decisions:
 [`docs/adr/`](./docs/adr/).
 
-**Current phase: Phase 0 — foundations, environments & CI/CD skeleton (complete).**
+**Current phase: Phase 1 — backend core domain: auth, accounts & ledger (complete).**
 
 ## Stack
 
@@ -89,6 +89,33 @@ Every gate below runs in CI on each PR and must pass before merge.
 cd backend  && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 cd frontend && yarn lint && yarn format:check && yarn typecheck && yarn test:coverage && yarn build
 ```
+
+## API
+
+The OpenAPI schema is committed at `backend/openapi.json` and is the contract
+the frontend generates its client from. CI fails if it drifts from the code.
+
+```bash
+cd backend && uv run python scripts/export_openapi.py   # after any API change
+```
+
+| Area | Endpoints |
+|---|---|
+| Auth | `POST /api/v1/auth/{register,login,refresh,logout}`, `GET /api/v1/auth/me` |
+| Accounts | `GET|POST /api/v1/accounts`, `GET|PATCH|DELETE /api/v1/accounts/{id}`, `GET /api/v1/accounts/{id}/balance` |
+| Categories | `GET|POST /api/v1/categories`, `GET|PATCH|DELETE /api/v1/categories/{id}` |
+| Transactions | `GET|POST /api/v1/transactions`, `GET|PATCH|DELETE /api/v1/transactions/{id}`, `POST /api/v1/transactions/transfers` |
+
+Key domain rules (see `docs/adr/`):
+
+- **Money** is stored as integer minor units with an explicit currency; amounts
+  too precise for their currency are rejected, never rounded (ADR 0004).
+- **Refresh tokens** are httpOnly cookies, stored hashed, and rotate on every
+  use; replaying a rotated token fails (ADR 0005).
+- **Transfers** are two linked legs sharing a `transfer_group_id` that always
+  net to zero; deleting one deletes both (ADR 0006).
+- **Ownership** is enforced on every query — another user's resource returns
+  404, so existence never leaks.
 
 ## Database migrations
 

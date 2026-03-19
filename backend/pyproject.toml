@@ -12,6 +12,9 @@ dependencies = [
     "asyncpg>=0.30",
     "alembic>=1.14",
     "structlog>=24.4",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.10",
+    "email-validator>=2.2",
 ]
 
 [dependency-groups]
@@ -82,6 +85,9 @@ markers = [
 [tool.coverage.run]
 source = ["app"]
 branch = true
+# SQLAlchemy's async bridge runs ORM code inside greenlets; without this,
+# service-layer lines executed during async DB work are never traced.
+concurrency = ["greenlet", "thread"]
 omit = ["app/db/migrations/*"]
 
 [tool.coverage.report]

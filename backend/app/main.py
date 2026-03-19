@@ -5,11 +5,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
+from app.core.errors import AppError
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestContextMiddleware
 from app.db.session import dispose_engine, init_engine
@@ -54,6 +56,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_headers=["*"],
             expose_headers=["X-Request-ID"],
         )
+
+    @app.exception_handler(AppError)
+    async def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
+        """Map domain errors to HTTP responses in one place."""
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     app.include_router(api_router)
     return app

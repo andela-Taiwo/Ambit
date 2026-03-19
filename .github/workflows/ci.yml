@@ -47,6 +47,13 @@ jobs:
       - name: mypy --strict
         run: uv run mypy
 
+      # The committed schema is the frontend's contract; a stale one means the
+      # generated client would drift from the real API.
+      - name: OpenAPI schema is up to date
+        run: |
+          uv run python scripts/export_openapi.py
+          git diff --exit-code openapi.json
+
       # Testcontainers starts a real Postgres via the runner's Docker daemon,
       # so integration tests hit the same engine as production.
       - name: Tests + coverage gate
