@@ -24,6 +24,10 @@ def committed_schema() -> dict[str, Any]:
 
 @pytest.fixture
 def live_schema() -> dict[str, Any]:
+    # Imported inside the fixture, not at module scope: importing `app.main`
+    # builds the app and loads settings, which fails fast on missing config.
+    # At module scope that would run during collection, before the autouse
+    # settings fixture has populated the environment.
     from app.main import create_app
 
     result: dict[str, Any] = create_app().openapi()

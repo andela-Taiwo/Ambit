@@ -9,6 +9,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.db.models import RefreshToken, User
+from app.db.session import get_session
+from app.services.auth import count_active_tokens, revoke_all_user_tokens
+
 pytestmark = pytest.mark.integration
 
 
@@ -16,9 +20,6 @@ class TestTokenLifecycle:
     async def test_an_expired_refresh_token_is_rejected(
         self, client: AsyncClient, registered_user: dict[str, str]
     ) -> None:
-        from app.db.models import RefreshToken
-        from app.db.session import get_session
-
         login = await client.post(
             "/api/v1/auth/login",
             json={"email": registered_user["email"], "password": registered_user["password"]},
@@ -42,10 +43,6 @@ class TestTokenLifecycle:
         self, client: AsyncClient, registered_user: dict[str, str]
     ) -> None:
         """Used on password change: every device is logged out."""
-        from app.db.models import User
-        from app.db.session import get_session
-        from app.services.auth import count_active_tokens, revoke_all_user_tokens
-
         login = await client.post(
             "/api/v1/auth/login",
             json={"email": registered_user["email"], "password": registered_user["password"]},
@@ -68,9 +65,6 @@ class TestTokenLifecycle:
     async def test_a_disabled_user_cannot_log_in(
         self, client: AsyncClient, registered_user: dict[str, str]
     ) -> None:
-        from app.db.models import User
-        from app.db.session import get_session
-
         agen = get_session()
         session = await anext(agen)
         user = await session.scalar(select(User).where(User.email == registered_user["email"]))
@@ -89,9 +83,6 @@ class TestTokenLifecycle:
     async def test_a_disabled_user_cannot_use_an_existing_access_token(
         self, client: AsyncClient, auth_headers: dict[str, str], registered_user: dict[str, str]
     ) -> None:
-        from app.db.models import User
-        from app.db.session import get_session
-
         agen = get_session()
         session = await anext(agen)
         user = await session.scalar(select(User).where(User.email == registered_user["email"]))

@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
+from app.db import session as session_module
+
 pytestmark = pytest.mark.integration
 
 
@@ -27,8 +29,6 @@ async def test_ready_reports_database_connectivity(client: AsyncClient) -> None:
 async def test_ready_returns_503_when_database_is_unreachable(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.db import session as session_module
-
     async def _fail() -> None:
         raise ConnectionError("database is down")
 

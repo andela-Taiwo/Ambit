@@ -9,6 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+
 from app.domain.money import (
     Currency,
     InvalidAmountError,

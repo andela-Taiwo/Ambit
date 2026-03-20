@@ -6,6 +6,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
+
 from app.core.security import (
     ExpiredTokenError,
     InvalidTokenError,

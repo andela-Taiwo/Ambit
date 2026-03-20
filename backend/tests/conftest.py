@@ -3,6 +3,11 @@
 The integration fixtures start a real Postgres via Testcontainers rather than
 SQLite, so dialect-specific behaviour (NUMERIC, constraints, async driver) is
 exercised the same way in tests as in production.
+
+Import note: most `app.*` modules import safely at module scope. The exception
+is `app.main`, whose `create_app()` loads settings eagerly -- importing it
+during collection would run before the env-setting fixtures and fail the
+fail-fast config check. Those imports stay inside the fixture that needs them.
 """
 
 from __future__ import annotations
@@ -15,6 +20,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
+
+from app.core.config import get_settings
+from app.db.migrate import run_migrations
+from app.db.session import dispose_engine, get_engine
 
 
 @pytest.fixture(scope="session")
@@ -30,8 +39,6 @@ def app_env(postgres_dsn: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", postgres_dsn)
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-not-used-anywhere-real")
     monkeypatch.setenv("APP_ENV", "test")
-    from app.core.config import get_settings
-
     get_settings.cache_clear()
 
 
@@ -51,9 +58,6 @@ async def migrated_db(app_env: None) -> AsyncIterator[None]:
     Migrations run once per session; truncation per test is far cheaper than
     rebuilding the schema and keeps tests independent of ordering.
     """
-    from app.db.migrate import run_migrations
-    from app.db.session import dispose_engine, get_engine
-
     await run_migrations()
     engine = get_engine()
     async with engine.begin() as conn:

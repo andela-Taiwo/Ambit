@@ -59,6 +59,11 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
 
+[tool.ruff.lint.isort]
+# Without this, `app` sorts as third-party in tests/ and scripts/, which
+# misgroups first-party imports.
+known-first-party = ["app"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

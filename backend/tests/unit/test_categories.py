@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+
 from app.domain.categories import (
     DEFAULT_CATEGORIES,
     MAX_CATEGORY_DEPTH,

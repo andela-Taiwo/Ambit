@@ -6,12 +6,18 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import (
+    check_database_connection,
+    dispose_engine,
+    get_engine,
+    get_session,
+    init_engine,
+)
+
 pytestmark = pytest.mark.integration
 
 
 async def test_get_session_yields_a_working_session(app_env: None) -> None:
-    from app.db.session import dispose_engine, get_session
-
     try:
         agen = get_session()
         session = await anext(agen)
@@ -23,8 +29,6 @@ async def test_get_session_yields_a_working_session(app_env: None) -> None:
 
 
 async def test_get_session_rolls_back_when_the_caller_raises(app_env: None) -> None:
-    from app.db.session import dispose_engine, get_session
-
     try:
         agen = get_session()
         session = await anext(agen)
@@ -40,8 +44,6 @@ async def test_get_session_rolls_back_when_the_caller_raises(app_env: None) -> N
 
 
 async def test_init_engine_is_idempotent(app_env: None) -> None:
-    from app.db.session import dispose_engine, init_engine
-
     try:
         assert init_engine() is init_engine()
     finally:
@@ -49,8 +51,6 @@ async def test_init_engine_is_idempotent(app_env: None) -> None:
 
 
 async def test_get_engine_initialises_on_first_use(app_env: None) -> None:
-    from app.db.session import dispose_engine, get_engine
-
     try:
         assert get_engine() is get_engine()
     finally:
@@ -58,8 +58,6 @@ async def test_get_engine_initialises_on_first_use(app_env: None) -> None:
 
 
 async def test_check_database_connection_succeeds(app_env: None) -> None:
-    from app.db.session import check_database_connection, dispose_engine
-
     try:
         await check_database_connection()
     finally:
@@ -67,8 +65,6 @@ async def test_check_database_connection_succeeds(app_env: None) -> None:
 
 
 async def test_dispose_engine_is_safe_to_call_twice(app_env: None) -> None:
-    from app.db.session import dispose_engine, init_engine
-
     init_engine()
     await dispose_engine()
     await dispose_engine()
