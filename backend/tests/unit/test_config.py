@@ -69,3 +69,32 @@ def test_wildcard_cors_rejected_outside_local(monkeypatch: pytest.MonkeyPatch) -
 
     with pytest.raises(ValidationError):
         get_settings()
+
+
+def test_local_environment_gets_vite_default_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh checkout must be able to call the API from Vite without a CORS wall."""
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("SECRET_KEY", "a-sufficiently-long-secret-key-value")
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    _clear_cache()
+
+    origins = get_settings().cors_origins
+
+    assert "http://localhost:5173" in origins
+    assert "http://127.0.0.1:5173" in origins
+    assert "http://localhost:4173" in origins
+
+
+def test_deployed_environments_get_no_local_cors_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("SECRET_KEY", "a-sufficiently-long-secret-key-value")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    _clear_cache()
+
+    assert get_settings().cors_origins == []

@@ -56,6 +56,11 @@ _CURRENCY_EXPONENTS: dict[str, int] = {
 
 SUPPORTED_CURRENCIES: frozenset[str] = frozenset(_CURRENCY_EXPONENTS)
 
+#: Guard against decimal amounts that would overflow the BigInteger columns.
+#: Ten trillion major units is far beyond personal finance and keeps every
+#: stored value inside a 64-bit integer with room to spare.
+MAX_MINOR_UNITS = 10**15
+
 
 @dataclass(frozen=True, slots=True)
 class Currency:
@@ -99,7 +104,10 @@ def to_minor_units(amount: Decimal, currency: Currency) -> int:
             f"({currency.exponent} decimal places)"
         ) from exc
 
-    return int(integral)
+    minor = int(integral)
+    if abs(minor) > MAX_MINOR_UNITS:
+        raise InvalidAmountError(f"Amount {amount} exceeds the maximum supported value")
+    return minor
 
 
 def format_minor_units(minor_units: int, currency: Currency) -> str:

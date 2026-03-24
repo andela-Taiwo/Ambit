@@ -92,3 +92,13 @@ class TestFormatMinorUnits:
         original = Decimal("8675.309")
         currency = Currency("BHD")  # three decimal places
         assert format_minor_units(to_minor_units(original, currency), currency) == "8675.309"
+
+
+class TestLargeAmounts:
+    def test_rejects_an_amount_that_would_overflow_bigint(self) -> None:
+        from decimal import Decimal
+
+        from app.domain.money import InvalidAmountError, to_minor_units
+
+        with pytest.raises(InvalidAmountError):
+            to_minor_units(Decimal("999999999999999999999"), Currency("GBP"))

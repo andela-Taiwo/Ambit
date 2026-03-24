@@ -20,6 +20,19 @@ AppEnv = Literal["local", "test", "ci", "staging", "production"]
 #: Settings read from the environment as `a, b, c` rather than a JSON array.
 COMMA_SEPARATED_FIELDS = frozenset({"cors_origins"})
 
+#: Vite's default dev and preview origins. Applied only when APP_ENV=local and
+#: no explicit CORS_ORIGINS is supplied, so a fresh checkout can talk to the
+#: local API without a confusing browser-only failure. Deployed environments
+#: must still configure their origins explicitly.
+LOCAL_DEV_CORS_ORIGINS: tuple[str, ...] = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://[::1]:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://[::1]:4173",
+)
+
 
 class _CommaSeparatedEnvSource(EnvSettingsSource):
     """Env source that leaves designated list fields as raw strings.
@@ -97,7 +110,9 @@ class Settings(BaseSettings):
         )
 
     @model_validator(mode="after")
-    def _forbid_wildcard_cors_outside_local(self) -> Settings:
+    def _apply_local_cors_defaults_and_forbid_wildcards(self) -> Settings:
+        if self.app_env == "local" and not self.cors_origins:
+            self.cors_origins = list(LOCAL_DEV_CORS_ORIGINS)
         if "*" in self.cors_origins and self.app_env in ("staging", "production"):
             raise ValueError("wildcard CORS origin is not allowed in staging or production")
         return self
