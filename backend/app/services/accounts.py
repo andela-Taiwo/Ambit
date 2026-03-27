@@ -11,6 +11,7 @@ from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.db.models import Account, Transaction
 from app.domain.money import Currency, InvalidAmountError, to_minor_units
 from app.schemas.accounts import AccountCreate, AccountUpdate
+from app.services import audit
 
 
 def _owned(user_id: uuid.UUID) -> Select[tuple[Account]]:
@@ -65,6 +66,14 @@ async def create_account(
         opening_balance_minor=opening_balance_minor,
     )
     session.add(account)
+    await session.flush()
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="account",
+        entity_id=account.id,
+        action="created",
+    )
     await session.commit()
     await session.refresh(account)
     return account
@@ -86,6 +95,13 @@ async def update_account(
     if payload.is_archived is not None:
         account.is_archived = payload.is_archived
 
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="account",
+        entity_id=account.id,
+        action="updated",
+    )
     await session.commit()
     await session.refresh(account)
     return account
@@ -94,6 +110,13 @@ async def update_account(
 async def delete_account(session: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID) -> None:
     account = await get_account(session, user_id, account_id)
     await session.delete(account)
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="account",
+        entity_id=account.id,
+        action="deleted",
+    )
     await session.commit()
 
 

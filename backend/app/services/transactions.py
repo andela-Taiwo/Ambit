@@ -19,6 +19,7 @@ from app.domain.ledger import (
 )
 from app.domain.money import Currency, InvalidAmountError, to_minor_units
 from app.schemas.transactions import TransactionCreate, TransactionUpdate, TransferCreate
+from app.services import audit
 from app.services.accounts import get_account
 from app.services.categories import get_category
 
@@ -105,6 +106,14 @@ async def create_transaction(
         notes=payload.notes,
     )
     session.add(transaction)
+    await session.flush()
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="transaction",
+        entity_id=transaction.id,
+        action="created",
+    )
     await session.commit()
     await session.refresh(transaction)
     return transaction
@@ -157,6 +166,13 @@ async def create_transfer(
         for leg in (debit, credit)
     ]
     session.add_all(legs)
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="transfer",
+        entity_id=legs[0].transfer_group_id,
+        action="created",
+    )
     await session.commit()
     for leg_row in legs:
         await session.refresh(leg_row)
@@ -197,6 +213,13 @@ async def update_transaction(
     if payload.notes is not None:
         transaction.notes = payload.notes
 
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="transaction",
+        entity_id=transaction.id,
+        action="updated",
+    )
     await session.commit()
     await session.refresh(transaction)
     return transaction
@@ -221,4 +244,11 @@ async def delete_transaction(
     else:
         await session.delete(transaction)
 
+    audit.record(
+        session,
+        user_id=user_id,
+        entity_type="transaction",
+        entity_id=transaction.id,
+        action="deleted",
+    )
     await session.commit()
