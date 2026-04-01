@@ -315,6 +315,56 @@
         "title": "CategoryUpdate",
         "type": "object"
       },
+      "ConversionResponse": {
+        "description": "A conversion preview. The rate used is returned so it can be audited.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "converted_minor": {
+            "title": "Converted Minor",
+            "type": "integer"
+          },
+          "from_currency": {
+            "title": "From Currency",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "string"
+          },
+          "rate_as_of": {
+            "format": "date-time",
+            "title": "Rate As Of",
+            "type": "string"
+          },
+          "rate_is_inverse": {
+            "title": "Rate Is Inverse",
+            "type": "boolean"
+          },
+          "rate_source": {
+            "title": "Rate Source",
+            "type": "string"
+          },
+          "to_currency": {
+            "title": "To Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_currency",
+          "to_currency",
+          "amount_minor",
+          "converted_minor",
+          "rate",
+          "rate_as_of",
+          "rate_source",
+          "rate_is_inverse"
+        ],
+        "title": "ConversionResponse",
+        "type": "object"
+      },
       "ErrorResponse": {
         "description": "The body returned by every handled error (see `AppError` in app.main).",
         "properties": {
@@ -327,6 +377,106 @@
           "detail"
         ],
         "title": "ErrorResponse",
+        "type": "object"
+      },
+      "ExchangeRateCreate": {
+        "description": "Record a manual rate. Provider rates are written by the scheduled job.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "base_currency": {
+            "examples": [
+              "GBP",
+              "NGN"
+            ],
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Base Currency",
+            "type": "string"
+          },
+          "quote_currency": {
+            "examples": [
+              "GBP",
+              "NGN"
+            ],
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Quote Currency",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
+                "type": "string"
+              }
+            ],
+            "description": "One unit of base_currency buys this many quote_currency.",
+            "examples": [
+              "1.27"
+            ],
+            "title": "Rate"
+          }
+        },
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "rate"
+        ],
+        "title": "ExchangeRateCreate",
+        "type": "object"
+      },
+      "ExchangeRateResponse": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "base_currency": {
+            "title": "Base Currency",
+            "type": "string"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "quote_currency": {
+            "title": "Quote Currency",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "base_currency",
+          "quote_currency",
+          "rate",
+          "as_of",
+          "source",
+          "fetched_at"
+        ],
+        "title": "ExchangeRateResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -440,6 +590,38 @@
         "title": "Page[CategoryResponse]",
         "type": "object"
       },
+      "Page_ExchangeRateResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExchangeRateResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching rows, ignoring pagination.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ExchangeRateResponse]",
+        "type": "object"
+      },
       "Page_TransactionResponse_": {
         "properties": {
           "items": {
@@ -538,6 +720,47 @@
           "display_name"
         ],
         "title": "RegisterRequest",
+        "type": "object"
+      },
+      "ResolvedRateResponse": {
+        "description": "The effective rate for a pair at a point in time, plus provenance.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "base_currency": {
+            "title": "Base Currency",
+            "type": "string"
+          },
+          "is_inverse": {
+            "description": "True when resolved from the opposite stored pair (1/rate).",
+            "title": "Is Inverse",
+            "type": "boolean"
+          },
+          "quote_currency": {
+            "title": "Quote Currency",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "rate",
+          "as_of",
+          "source",
+          "is_inverse"
+        ],
+        "title": "ResolvedRateResponse",
         "type": "object"
       },
       "TokenResponse": {
@@ -2059,6 +2282,435 @@
         "summary": "Update a category",
         "tags": [
           "categories"
+        ]
+      }
+    },
+    "/api/v1/exchange-rates": {
+      "get": {
+        "operationId": "list_exchange_rates_api_v1_exchange_rates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "base_currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "GBP",
+                    "NGN"
+                  ],
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Base Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "quote_currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "GBP",
+                    "NGN"
+                  ],
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quote Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ExchangeRateResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid credentials"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List exchange rates",
+        "tags": [
+          "exchange rates"
+        ]
+      },
+      "post": {
+        "description": "Manual rates are private to the caller.\n\nProvider-fetched rates are shared and written only by the scheduled job, so\na user cannot alter the rates another user's reports are based on.",
+        "operationId": "create_exchange_rate_api_v1_exchange_rates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeRateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeRateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid credentials"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with an existing resource"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Record a manual exchange rate",
+        "tags": [
+          "exchange rates"
+        ]
+      }
+    },
+    "/api/v1/exchange-rates/convert": {
+      "get": {
+        "description": "Convert an exact decimal amount at the effective rate.",
+        "operationId": "convert_api_v1_exchange_rates_convert_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_currency",
+            "required": true,
+            "schema": {
+              "examples": [
+                "GBP",
+                "NGN"
+              ],
+              "maxLength": 3,
+              "minLength": 3,
+              "title": "From Currency",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_currency",
+            "required": true,
+            "schema": {
+              "examples": [
+                "GBP",
+                "NGN"
+              ],
+              "maxLength": 3,
+              "minLength": 3,
+              "title": "To Currency",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ],
+              "examples": [
+                "100.00"
+              ],
+              "title": "Amount"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found or not owned by the caller"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview a currency conversion",
+        "tags": [
+          "exchange rates"
+        ]
+      }
+    },
+    "/api/v1/exchange-rates/latest": {
+      "get": {
+        "operationId": "latest_exchange_rate_api_v1_exchange_rates_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "base_currency",
+            "required": true,
+            "schema": {
+              "examples": [
+                "GBP",
+                "NGN"
+              ],
+              "maxLength": 3,
+              "minLength": 3,
+              "title": "Base Currency",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "quote_currency",
+            "required": true,
+            "schema": {
+              "examples": [
+                "GBP",
+                "NGN"
+              ],
+              "maxLength": 3,
+              "minLength": 3,
+              "title": "Quote Currency",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedRateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found or not owned by the caller"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get the effective rate for a pair",
+        "tags": [
+          "exchange rates"
         ]
       }
     },

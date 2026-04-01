@@ -75,12 +75,22 @@ def test_protected_routes_declare_security(live_schema: dict[str, Any]) -> None:
     assert not unsecured, f"These routes must require authentication: {unsecured}"
 
 
+def _is_integer_or_null(spec: dict[str, Any]) -> bool:
+    """A nullable integer is still integer money; a float never is."""
+    if spec.get("type") == "integer":
+        return True
+    variants = spec.get("anyOf", [])
+    return bool(variants) and all(
+        variant.get("type") in ("integer", "null") for variant in variants
+    )
+
+
 def test_money_is_never_typed_as_a_float(live_schema: dict[str, Any]) -> None:
     """Plan Section 9: money is integer minor units or a decimal string."""
     offenders = []
     for name, schema in live_schema["components"]["schemas"].items():
         for field, spec in schema.get("properties", {}).items():
-            if field.endswith("_minor") and spec.get("type") != "integer":
+            if field.endswith("_minor") and not _is_integer_or_null(spec):
                 offenders.append(f"{name}.{field}")
 
     assert not offenders, f"Minor-unit fields must be integers: {offenders}"

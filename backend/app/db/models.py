@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -20,10 +21,12 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy import (
     Enum as SAEnum,
@@ -214,6 +217,64 @@ class Transaction(Base, TimestampMixin):
         Index("ix_transactions_account_id", "account_id"),
         Index("ix_transactions_category_id", "category_id"),
         Index("ix_transactions_transfer_group_id", "transfer_group_id"),
+    )
+
+
+class ExchangeRate(Base):
+    """An append-only observation of one currency pair at a point in time.
+
+    `rate` means one unit of `base_currency` buys `rate` units of
+    `quote_currency`. Rows are never updated: a corrected rate is a new row
+    with a later `as_of`, so historical reports remain reproducible.
+
+    Rows with a `user_id` are private, user-entered rates; rows with a NULL
+    `user_id` are fetched from the configured provider and shared. Resolution
+    prefers the user's own rate, then the shared one (see `app.services.fx`).
+    """
+
+    __tablename__ = "exchange_rates"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    base_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    quote_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    rate: Mapped[Decimal] = mapped_column(Numeric(24, 12), nullable=False)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("rate > 0", name="rate_positive"),
+        CheckConstraint("base_currency <> quote_currency", name="currencies_differ"),
+        # The API never records a rate without provenance.
+        CheckConstraint("length(source) > 0", name="source_not_empty"),
+        Index("ix_exchange_rates_pair_as_of", "base_currency", "quote_currency", "as_of"),
+        Index("ix_exchange_rates_user_id", "user_id"),
+        # Partial uniques make concurrent duplicate writes fail in the database.
+        # Postgres treats NULLs as distinct, hence one index per owner shape.
+        Index(
+            "uq_exchange_rates_global_observation",
+            "base_currency",
+            "quote_currency",
+            "as_of",
+            "source",
+            unique=True,
+            postgresql_where=text("user_id IS NULL"),
+        ),
+        Index(
+            "uq_exchange_rates_user_observation",
+            "user_id",
+            "base_currency",
+            "quote_currency",
+            "as_of",
+            "source",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
     )
 
 

@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import accounts, auth, categories, health, transactions
+from app.api.v1 import (
+    accounts,
+    auth,
+    categories,
+    exchange_rates,
+    health,
+    transactions,
+)
 
 api_router = APIRouter()
 
@@ -17,5 +24,6 @@ v1_router.include_router(auth.router)
 v1_router.include_router(accounts.router)
 v1_router.include_router(categories.router)
 v1_router.include_router(transactions.router)
+v1_router.include_router(exchange_rates.router)
 
 api_router.include_router(v1_router)
