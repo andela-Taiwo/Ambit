@@ -7,7 +7,8 @@ not open connections as a side effect.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -52,6 +53,24 @@ def get_engine() -> AsyncEngine:
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency yielding a session that rolls back on error."""
+    if _sessionmaker is None:
+        init_engine()
+    assert _sessionmaker is not None
+    async with _sessionmaker() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+
+
+@asynccontextmanager
+async def session_scope() -> AsyncIterator[AsyncSession]:
+    """A session for background jobs and CLIs, rolled back on failure.
+
+    Mirrors the request dependency's lifecycle so a failed job cannot leave a
+    partially-applied transaction behind.
+    """
     if _sessionmaker is None:
         init_engine()
     assert _sessionmaker is not None
