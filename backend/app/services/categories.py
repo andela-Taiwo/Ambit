@@ -155,3 +155,38 @@ async def delete_category(
     category = await get_category(session, user_id, category_id)
     await session.delete(category)
     await session.commit()
+
+
+async def category_subtree_map(
+    session: AsyncSession, user_id: uuid.UUID
+) -> dict[uuid.UUID, frozenset[uuid.UUID]]:
+    """Map every category to itself plus all of its descendants.
+
+    Budget and report roll-ups need this repeatedly. Loading the (small,
+    user-owned) category tree once and walking it in memory avoids a recursive
+    CTE per budget while staying cycle-safe even if legacy data is corrupt.
+    """
+    rows = (
+        await session.execute(
+            select(Category.id, Category.parent_id).where(Category.user_id == user_id)
+        )
+    ).all()
+
+    children: dict[uuid.UUID, list[uuid.UUID]] = {category_id: [] for category_id, _ in rows}
+    for category_id, parent_id in rows:
+        if parent_id is not None and parent_id in children:
+            children[parent_id].append(category_id)
+
+    subtrees: dict[uuid.UUID, frozenset[uuid.UUID]] = {}
+    for root in children:
+        seen: set[uuid.UUID] = set()
+        stack = [root]
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            stack.extend(children.get(current, ()))
+        subtrees[root] = frozenset(seen)
+
+    return subtrees

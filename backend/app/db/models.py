@@ -84,6 +84,9 @@ class User(Base, TimestampMixin):
     transactions: Mapped[list[Transaction]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    budgets: Mapped[list[Budget]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -160,10 +163,64 @@ class Category(Base, TimestampMixin):
     )
     children: Mapped[list[Category]] = relationship(back_populates="parent")
     transactions: Mapped[list[Transaction]] = relationship(back_populates="category")
+    budgets: Mapped[list[Budget]] = relationship(back_populates="category")
 
     __table_args__ = (
         UniqueConstraint("user_id", "parent_id", "name", name="uq_categories_user_id_parent_id"),
         Index("ix_categories_user_id", "user_id"),
+    )
+
+
+class Budget(Base, TimestampMixin):
+    """A monthly spending limit for one category.
+
+    Periods are calendar months. `starts_on` is the first month the budget
+    applies to and `ends_on`, when set, is the first month it no longer
+    applies to (an exclusive boundary) -- storing a boundary rather than an
+    inclusive end avoids the classic off-by-one "did December count?" bug.
+
+    `amount_minor` is deliberately non-negative: a budget of zero is a valid
+    "spend nothing here" statement, while a negative limit is nonsense.
+    """
+
+    __tablename__ = "budgets"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=False
+    )
+    amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    starts_on: Mapped[date] = mapped_column(Date, nullable=False)
+    ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    rollover_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    user: Mapped[User] = relationship(back_populates="budgets")
+    category: Mapped[Category] = relationship(back_populates="budgets")
+
+    __table_args__ = (
+        CheckConstraint("amount_minor >= 0", name="amount_non_negative"),
+        CheckConstraint("EXTRACT(DAY FROM starts_on) = 1", name="starts_on_first_of_month"),
+        CheckConstraint(
+            "ends_on IS NULL OR EXTRACT(DAY FROM ends_on) = 1",
+            name="ends_on_first_of_month",
+        ),
+        CheckConstraint("ends_on IS NULL OR ends_on > starts_on", name="ends_after_start"),
+        # One *active* budget per category. Archived rows are excluded so a
+        # category can be re-budgeted without deleting its history.
+        Index(
+            "uq_budgets_active_category",
+            "user_id",
+            "category_id",
+            unique=True,
+            postgresql_where=text("is_archived IS FALSE"),
+        ),
+        Index("ix_budgets_user_id", "user_id"),
+        Index("ix_budgets_category_id", "category_id"),
     )
 
 
