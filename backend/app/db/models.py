@@ -37,6 +37,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.domain.accounts import AccountType
 from app.domain.categories import CategoryKind
+from app.domain.investments import Compounding, InvestmentType, RatePeriod
 from app.domain.ledger import TransactionType
 
 
@@ -87,6 +88,12 @@ class User(Base, TimestampMixin):
     budgets: Mapped[list[Budget]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    investments: Mapped[list[Investment]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    investment_valuations: Mapped[list[InvestmentValuation]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -134,6 +141,7 @@ class Account(Base, TimestampMixin):
 
     user: Mapped[User] = relationship(back_populates="accounts")
     transactions: Mapped[list[Transaction]] = relationship(back_populates="account")
+    investments: Mapped[list[Investment]] = relationship(back_populates="account")
 
     __table_args__ = (
         UniqueConstraint("user_id", "name", name="uq_accounts_user_id_name"),
@@ -221,6 +229,100 @@ class Budget(Base, TimestampMixin):
         ),
         Index("ix_budgets_user_id", "user_id"),
         Index("ix_budgets_category_id", "category_id"),
+    )
+
+
+class Investment(Base, TimestampMixin):
+    """A holding inside an investment account.
+
+    A fixed-rate instrument carries a stated rate; a market-priced one is
+    valued only through `InvestmentValuation` snapshots. The service enforces
+    that those fields are consistent -- the database keeps the basic numeric
+    invariants.
+    """
+
+    __tablename__ = "investments"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    investment_type: Mapped[InvestmentType] = mapped_column(
+        SAEnum(InvestmentType, name="investment_type", native_enum=False, length=32),
+        nullable=False,
+    )
+    principal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    rate: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    rate_period: Mapped[RatePeriod | None] = mapped_column(
+        SAEnum(RatePeriod, name="rate_period", native_enum=False, length=16), nullable=True
+    )
+    compounding: Mapped[Compounding] = mapped_column(
+        SAEnum(Compounding, name="compounding", native_enum=False, length=16),
+        nullable=False,
+        default=Compounding.SIMPLE,
+    )
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    maturity_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    user: Mapped[User] = relationship(back_populates="investments")
+    account: Mapped[Account] = relationship(back_populates="investments")
+    valuations: Mapped[list[InvestmentValuation]] = relationship(
+        back_populates="investment", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint("principal_minor >= 0", name="principal_non_negative"),
+        CheckConstraint("rate IS NULL OR rate > 0", name="rate_positive_when_set"),
+        CheckConstraint(
+            "maturity_date IS NULL OR maturity_date >= start_date", name="maturity_after_start"
+        ),
+        UniqueConstraint("user_id", "name", name="uq_investments_user_id_name"),
+        Index("ix_investments_user_id", "user_id"),
+        Index("ix_investments_account_id", "account_id"),
+    )
+
+
+class InvestmentValuation(Base):
+    """A recorded value for a holding at a date.
+
+    Snapshots make returns chartable for instruments without a price feed. A
+    corrected value is a new observation, not a rewrite of history.
+    """
+
+    __tablename__ = "investment_valuations"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    investment_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investments.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    as_of: Mapped[date] = mapped_column(Date, nullable=False)
+    value_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    investment: Mapped[Investment] = relationship(back_populates="valuations")
+    user: Mapped[User] = relationship(back_populates="investment_valuations")
+
+    __table_args__ = (
+        CheckConstraint("value_minor >= 0", name="value_non_negative"),
+        CheckConstraint("length(source) > 0", name="source_not_empty"),
+        UniqueConstraint(
+            "investment_id", "as_of", name="uq_investment_valuations_investment_id_as_of"
+        ),
+        Index("ix_investment_valuations_user_id_as_of", "user_id", "as_of"),
     )
 
 

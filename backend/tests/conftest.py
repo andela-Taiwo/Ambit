@@ -63,8 +63,9 @@ async def migrated_db(app_env: None) -> AsyncIterator[None]:
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE budgets, exchange_rates, transactions, categories, "
-                "accounts, refresh_tokens, audit_logs, users RESTART IDENTITY CASCADE"
+                "TRUNCATE TABLE investment_valuations, investments, budgets, "
+                "exchange_rates, transactions, categories, accounts, refresh_tokens, "
+                "audit_logs, users RESTART IDENTITY CASCADE"
             )
         )
     try:

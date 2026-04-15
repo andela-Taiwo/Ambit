@@ -11,6 +11,7 @@ from app.api.v1 import (
     categories,
     exchange_rates,
     health,
+    investments,
     transactions,
 )
 
@@ -27,5 +28,6 @@ v1_router.include_router(categories.router)
 v1_router.include_router(transactions.router)
 v1_router.include_router(exchange_rates.router)
 v1_router.include_router(budgets.router)
+v1_router.include_router(investments.router)
 
 api_router.include_router(v1_router)
