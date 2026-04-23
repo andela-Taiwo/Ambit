@@ -86,6 +86,8 @@ class TransactionResponse(ORMModel):
     description: str
     notes: str | None
     transfer_group_id: uuid.UUID | None
+    recurring_rule_id: uuid.UUID | None = None
+    occurrence_on: date | None = None
     created_at: datetime
     updated_at: datetime
 

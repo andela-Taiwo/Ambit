@@ -12,6 +12,7 @@ from app.api.v1 import (
     exchange_rates,
     health,
     investments,
+    recurring_rules,
     reports,
     transactions,
 )
@@ -31,5 +32,6 @@ v1_router.include_router(exchange_rates.router)
 v1_router.include_router(budgets.router)
 v1_router.include_router(investments.router)
 v1_router.include_router(reports.router)
+v1_router.include_router(recurring_rules.router)
 
 api_router.include_router(v1_router)

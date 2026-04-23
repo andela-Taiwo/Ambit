@@ -39,6 +39,7 @@ from app.domain.accounts import AccountType
 from app.domain.categories import CategoryKind
 from app.domain.investments import Compounding, InvestmentType, RatePeriod
 from app.domain.ledger import TransactionType
+from app.domain.recurring import RecurrenceFrequency
 
 
 def _uuid_pk() -> Mapped[uuid.UUID]:
@@ -94,6 +95,9 @@ class User(Base, TimestampMixin):
     investment_valuations: Mapped[list[InvestmentValuation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    recurring_rules: Mapped[list[RecurringRule]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -142,6 +146,7 @@ class Account(Base, TimestampMixin):
     user: Mapped[User] = relationship(back_populates="accounts")
     transactions: Mapped[list[Transaction]] = relationship(back_populates="account")
     investments: Mapped[list[Investment]] = relationship(back_populates="account")
+    recurring_rules: Mapped[list[RecurringRule]] = relationship(back_populates="account")
 
     __table_args__ = (
         UniqueConstraint("user_id", "name", name="uq_accounts_user_id_name"),
@@ -172,6 +177,7 @@ class Category(Base, TimestampMixin):
     children: Mapped[list[Category]] = relationship(back_populates="parent")
     transactions: Mapped[list[Transaction]] = relationship(back_populates="category")
     budgets: Mapped[list[Budget]] = relationship(back_populates="category")
+    recurring_rules: Mapped[list[RecurringRule]] = relationship(back_populates="category")
 
     __table_args__ = (
         UniqueConstraint("user_id", "parent_id", "name", name="uq_categories_user_id_parent_id"),
@@ -326,6 +332,66 @@ class InvestmentValuation(Base):
     )
 
 
+class RecurringRule(Base, TimestampMixin):
+    """A schedule that materialises transactions on a cadence.
+
+    `next_run_on` is the authoritative cursor. It only advances over rows that
+    were actually emitted, so a crash or a capped catch-up run resumes exactly
+    where it left off. The unique `(recurring_rule_id, occurrence_on)` index on
+    transactions makes a retry safe.
+    """
+
+    __tablename__ = "recurring_rules"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+    )
+    description: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    transaction_type: Mapped[TransactionType] = mapped_column(
+        SAEnum(TransactionType, name="transaction_type", native_enum=False, length=32),
+        nullable=False,
+    )
+    amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    frequency: Mapped[RecurrenceFrequency] = mapped_column(
+        SAEnum(RecurrenceFrequency, name="recurrence_frequency", native_enum=False, length=16),
+        nullable=False,
+    )
+    interval: Mapped[int] = mapped_column(Integer, nullable=False)
+    day_of_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    starts_on: Mapped[date] = mapped_column(Date, nullable=False)
+    ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_run_on: Mapped[date] = mapped_column(Date, nullable=False)
+    last_run_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    user: Mapped[User] = relationship(back_populates="recurring_rules")
+    account: Mapped[Account] = relationship(back_populates="recurring_rules")
+    category: Mapped[Category | None] = relationship(back_populates="recurring_rules")
+    transactions: Mapped[list[Transaction]] = relationship(back_populates="recurring_rule")
+
+    __table_args__ = (
+        CheckConstraint("amount_minor > 0", name="amount_positive"),
+        CheckConstraint("interval >= 1 AND interval <= 365", name="interval_in_range"),
+        CheckConstraint(
+            "day_of_month IS NULL OR (day_of_month >= 1 AND day_of_month <= 31)",
+            name="day_of_month_in_range",
+        ),
+        CheckConstraint("ends_on IS NULL OR ends_on >= starts_on", name="ends_after_start"),
+        CheckConstraint("transaction_type <> 'TRANSFER'", name="not_a_transfer"),
+        Index("ix_recurring_rules_user_id", "user_id"),
+        Index("ix_recurring_rules_account_id", "account_id"),
+        Index("ix_recurring_rules_due", "is_active", "next_run_on"),
+    )
+
+
 class Transaction(Base, TimestampMixin):
     """A single ledger entry.
 
@@ -360,10 +426,17 @@ class Transaction(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     transfer_group_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    recurring_rule_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("recurring_rules.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    occurrence_on: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="transactions")
     account: Mapped[Account] = relationship(back_populates="transactions")
     category: Mapped[Category | None] = relationship(back_populates="transactions")
+    recurring_rule: Mapped[RecurringRule | None] = relationship(back_populates="transactions")
 
     __table_args__ = (
         # Enforced in the database, not just the application: a zero or
@@ -376,6 +449,14 @@ class Transaction(Base, TimestampMixin):
         Index("ix_transactions_account_id", "account_id"),
         Index("ix_transactions_category_id", "category_id"),
         Index("ix_transactions_transfer_group_id", "transfer_group_id"),
+        Index("ix_transactions_recurring_rule_id", "recurring_rule_id"),
+        Index(
+            "uq_transactions_recurring_occurrence",
+            "recurring_rule_id",
+            "occurrence_on",
+            unique=True,
+            postgresql_where=text("recurring_rule_id IS NOT NULL"),
+        ),
     )
 
 
