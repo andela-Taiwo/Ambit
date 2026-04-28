@@ -432,6 +432,11 @@ class Transaction(Base, TimestampMixin):
         nullable=True,
     )
     occurrence_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Import provenance: a stable per-user hash makes re-importing the same
+    # statement a no-op rather than a duplicate ledger entry.
+    import_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="transactions")
     account: Mapped[Account] = relationship(back_populates="transactions")
@@ -456,6 +461,14 @@ class Transaction(Base, TimestampMixin):
             "occurrence_on",
             unique=True,
             postgresql_where=text("recurring_rule_id IS NOT NULL"),
+        ),
+        Index("ix_transactions_import_batch_id", "import_batch_id"),
+        Index(
+            "uq_transactions_user_import_hash",
+            "user_id",
+            "import_hash",
+            unique=True,
+            postgresql_where=text("import_hash IS NOT NULL"),
         ),
     )
 

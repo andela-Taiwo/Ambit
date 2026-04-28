@@ -60,7 +60,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(AppError)
     async def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
         """Map domain errors to HTTP responses in one place."""
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, **exc.details},
+        )
 
     app.include_router(api_router)
     return app

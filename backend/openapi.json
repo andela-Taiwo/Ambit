@@ -180,6 +180,69 @@
         "title": "AccountUpdate",
         "type": "object"
       },
+      "AmountSignConvention": {
+        "enum": [
+          "negative_is_expense",
+          "positive_is_expense"
+        ],
+        "title": "AmountSignConvention",
+        "type": "string"
+      },
+      "AuditLogResponse": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "id",
+          "entity_type",
+          "entity_id",
+          "action",
+          "request_id",
+          "occurred_at"
+        ],
+        "title": "AuditLogResponse",
+        "type": "object"
+      },
       "BudgetCreate": {
         "properties": {
           "amount": {
@@ -930,6 +993,234 @@
         "title": "ConvertedAmount",
         "type": "object"
       },
+      "CsvColumnMapping": {
+        "description": "Which CSV header supplies each field.",
+        "properties": {
+          "amount": {
+            "default": "amount",
+            "title": "Amount",
+            "type": "string"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "date": {
+            "default": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "title": "CsvColumnMapping",
+        "type": "object"
+      },
+      "CsvImportErrorResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/CsvImportRowError"
+            },
+            "title": "Errors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detail",
+          "error_count",
+          "errors"
+        ],
+        "title": "CsvImportErrorResponse",
+        "type": "object"
+      },
+      "CsvImportRequest": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "amount_sign": {
+            "$ref": "#/components/schemas/AmountSignConvention",
+            "default": "negative_is_expense"
+          },
+          "csv": {
+            "maxLength": 10000000,
+            "minLength": 1,
+            "title": "Csv",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "examples": [
+                  "GBP",
+                  "NGN"
+                ],
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to the destination account's currency.",
+            "title": "Currency"
+          },
+          "date_format": {
+            "default": "%Y-%m-%d",
+            "title": "Date Format",
+            "type": "string"
+          },
+          "default_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Category Id"
+          },
+          "default_description": {
+            "default": "Imported transaction",
+            "maxLength": 255,
+            "title": "Default Description",
+            "type": "string"
+          },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/CsvColumnMapping"
+          }
+        },
+        "required": [
+          "account_id",
+          "csv"
+        ],
+        "title": "CsvImportRequest",
+        "type": "object"
+      },
+      "CsvImportResult": {
+        "properties": {
+          "batch_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a dry run or a rejected import.",
+            "title": "Batch Id"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "error_count": {
+            "default": 0,
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/CsvImportRowError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "imported_count": {
+            "title": "Imported Count",
+            "type": "integer"
+          },
+          "skipped_count": {
+            "title": "Skipped Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "imported_count",
+          "skipped_count",
+          "dry_run"
+        ],
+        "title": "CsvImportResult",
+        "type": "object"
+      },
+      "CsvImportRowError": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "row": {
+            "description": "1-based line number in the source CSV.",
+            "title": "Row",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row",
+          "message"
+        ],
+        "title": "CsvImportRowError",
+        "type": "object"
+      },
       "ErrorResponse": {
         "description": "The body returned by every handled error (see `AppError` in app.main).",
         "properties": {
@@ -1042,6 +1333,103 @@
           "fetched_at"
         ],
         "title": "ExchangeRateResponse",
+        "type": "object"
+      },
+      "FullExportResponse": {
+        "description": "The user's complete data set in one JSON document.",
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountResponse"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "audit_logs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogResponse"
+            },
+            "title": "Audit Logs",
+            "type": "array"
+          },
+          "budgets": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetResponse"
+            },
+            "title": "Budgets",
+            "type": "array"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryResponse"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "exchange_rates": {
+            "items": {
+              "$ref": "#/components/schemas/ExchangeRateResponse"
+            },
+            "title": "Exchange Rates",
+            "type": "array"
+          },
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "investment_valuations": {
+            "items": {
+              "$ref": "#/components/schemas/ValuationResponse"
+            },
+            "title": "Investment Valuations",
+            "type": "array"
+          },
+          "investments": {
+            "items": {
+              "$ref": "#/components/schemas/InvestmentResponse"
+            },
+            "title": "Investments",
+            "type": "array"
+          },
+          "recurring_rules": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringRuleResponse"
+            },
+            "title": "Recurring Rules",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionResponse"
+            },
+            "title": "Transactions",
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          }
+        },
+        "required": [
+          "exported_at",
+          "user",
+          "accounts",
+          "categories",
+          "transactions",
+          "budgets",
+          "investments",
+          "investment_valuations",
+          "recurring_rules",
+          "exchange_rates",
+          "audit_logs"
+        ],
+        "title": "FullExportResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2620,10 +3008,33 @@
             "title": "Description",
             "type": "string"
           },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "import_batch_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Batch Id"
           },
           "notes": {
             "anyOf": [
@@ -5086,6 +5497,42 @@
         ]
       }
     },
+    "/api/v1/export": {
+      "get": {
+        "operationId": "export_data_api_v1_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FullExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid credentials"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export all of the caller's data",
+        "tags": [
+          "export"
+        ]
+      }
+    },
     "/api/v1/investments": {
       "get": {
         "operationId": "list_investments_api_v1_investments_get",
@@ -6889,6 +7336,63 @@
           }
         ],
         "summary": "Record an income or expense transaction",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/v1/transactions/import": {
+      "post": {
+        "description": "Validate the whole file first, then import; duplicates are skipped.",
+        "operationId": "import_transactions_api_v1_transactions_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CsvImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvImportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid credentials"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvImportErrorResponse"
+                }
+              }
+            },
+            "description": "Row-level errors"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import transactions from CSV",
         "tags": [
           "transactions"
         ]

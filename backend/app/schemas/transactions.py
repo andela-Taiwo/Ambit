@@ -88,6 +88,8 @@ class TransactionResponse(ORMModel):
     transfer_group_id: uuid.UUID | None
     recurring_rule_id: uuid.UUID | None = None
     occurrence_on: date | None = None
+    import_batch_id: uuid.UUID | None = None
+    external_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

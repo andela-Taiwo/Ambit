@@ -13,10 +13,13 @@ class AppError(Exception):
     status_code: int = 400
     detail: str = "Request could not be processed"
 
-    def __init__(self, detail: str | None = None) -> None:
+    def __init__(
+        self, detail: str | None = None, *, details: dict[str, object] | None = None
+    ) -> None:
         super().__init__(detail or self.detail)
         if detail is not None:
             self.detail = detail
+        self.details: dict[str, object] = details or {}
 
 
 class NotFoundError(AppError):
@@ -42,3 +45,10 @@ class AuthenticationError(AppError):
 class PermissionDeniedError(AppError):
     status_code = 403
     detail = "You do not have access to this resource"
+
+
+class ImportValidationError(AppError):
+    """A bulk import was rejected atomically; `details` carries row errors."""
+
+    status_code = 422
+    detail = "Import contains invalid rows; nothing was imported"

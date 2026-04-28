@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query, status
 from app.api.deps import CurrentUser, SessionDep
 from app.domain.ledger import TransactionType
 from app.schemas.common import NOT_FOUND, UNAUTHORISED, Page
+from app.schemas.imports import CsvImportErrorResponse, CsvImportRequest, CsvImportResult
 from app.schemas.transactions import (
     TransactionCreate,
     TransactionResponse,
@@ -18,6 +19,7 @@ from app.schemas.transactions import (
     TransferCreate,
     TransferResponse,
 )
+from app.services import imports as imports_service
 from app.services import transactions as transactions_service
 
 router = APIRouter(prefix="/transactions", tags=["transactions"], responses=UNAUTHORISED)
@@ -66,6 +68,19 @@ async def create_transaction(
 ) -> TransactionResponse:
     transaction = await transactions_service.create_transaction(session, current_user.id, payload)
     return TransactionResponse.model_validate(transaction)
+
+
+@router.post(
+    "/import",
+    response_model=CsvImportResult,
+    summary="Import transactions from CSV",
+    responses={422: {"model": CsvImportErrorResponse, "description": "Row-level errors"}},
+)
+async def import_transactions(
+    session: SessionDep, current_user: CurrentUser, payload: CsvImportRequest
+) -> CsvImportResult:
+    """Validate the whole file first, then import; duplicates are skipped."""
+    return await imports_service.import_csv(session, current_user, payload)
 
 
 @router.post(
