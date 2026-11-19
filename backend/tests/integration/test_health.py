@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
+from app.db import session as session_module
+
 pytestmark = pytest.mark.integration
 
 
@@ -27,8 +29,6 @@ async def test_ready_reports_database_connectivity(client: AsyncClient) -> None:
 async def test_ready_returns_503_when_database_is_unreachable(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.db import session as session_module
-
     async def _fail() -> None:
         raise ConnectionError("database is down")
 
@@ -59,3 +59,11 @@ async def test_inbound_correlation_id_is_echoed_back(client: AsyncClient) -> Non
     response = await client.get("/health", headers={"X-Request-ID": "abc-123"})
 
     assert response.headers["x-request-id"] == "abc-123"
+
+
+async def test_an_unsafe_request_id_is_replaced(client: AsyncClient) -> None:
+    response = await client.get("/health", headers={"X-Request-ID": "x" * 200})
+
+    assert response.status_code == 200
+    assert len(response.headers["X-Request-ID"]) <= 64
+    assert response.headers["X-Request-ID"] != "x" * 200

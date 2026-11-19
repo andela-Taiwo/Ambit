@@ -1,70 +1,43 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
-import type { ReactElement } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '@/app/App';
+import { resetAuthForTests } from '@/features/auth/store';
+import { jsonResponse } from './helpers/api';
 
-const renderWithProviders = (ui: ReactElement): void => {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
-};
-
-const stubFetch = (body: unknown, status = 200): void => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(body), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    ),
-  );
-};
+beforeEach(() => {
+  resetAuthForTests();
+  window.history.pushState({}, '', '/');
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
-describe('App shell', () => {
-  it('renders the application name', () => {
-    stubFetch({ status: 'ok' });
-    renderWithProviders(<App />);
+describe('App', () => {
+  it('restores the session then sends an anonymous visitor to login', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ detail: 'no session' }, 401)),
+    );
 
-    expect(screen.getByRole('heading', { name: /finance tracker/i })).toBeInTheDocument();
+    render(<App />);
+
+    expect(screen.getByText(/restoring your session/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /welcome back/i })).toBeInTheDocument();
   });
 
-  it('exposes a main landmark for assistive technology', () => {
-    stubFetch({ status: 'ok' });
-    renderWithProviders(<App />);
+  it('renders the login form with accessible fields', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ detail: 'no session' }, 401)),
+    );
 
-    expect(screen.getByRole('main')).toBeInTheDocument();
-  });
+    render(<App />);
 
-  it('shows a loading state while the backend status is in flight', () => {
-    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})));
-    renderWithProviders(<App />);
-
-    expect(screen.getByRole('status')).toHaveTextContent(/checking/i);
-  });
-
-  it('reports the backend as connected when health returns ok', async () => {
-    stubFetch({ status: 'ok' });
-    renderWithProviders(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/connected/i);
-    });
-  });
-
-  it('reports the backend as unavailable when health fails', async () => {
-    stubFetch({ detail: 'boom' }, 503);
-    renderWithProviders(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/unavailable/i);
-    });
+    expect(await screen.findByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 });

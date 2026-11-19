@@ -5,15 +5,16 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-# Importing the models package registers every model on Base.metadata so
-# autogenerate sees the full schema.
-import app.db.models  # noqa: F401  (import for side effects)
 from alembic import context
-from app.core.config import get_settings
-from app.db.base import Base
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
+
+# Importing the models package registers every model on Base.metadata so
+# autogenerate sees the full schema.
+import app.db.models  # noqa: F401  (import for side effects)
+from app.core.config import get_settings
+from app.db.base import Base
 
 config = context.config
 

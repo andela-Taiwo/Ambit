@@ -35,12 +35,23 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      // Event handlers are commonly concise arrow shorthands; the handler's
+      // return value is ignored by React, so this is not a real hazard.
+      '@typescript-eslint/no-confusing-void-expression': [
+        'error',
+        { ignoreArrowShorthand: true, ignoreVoidOperator: true },
+      ],
     },
   },
   {
     files: ['tests/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
+      // Tests inspect request bodies and method references; these strict rules
+      // add noise without catching a real defect in assertions.
+      '@typescript-eslint/no-base-to-string': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
     },
   },
   prettier,

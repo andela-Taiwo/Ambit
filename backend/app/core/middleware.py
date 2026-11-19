@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -13,6 +14,9 @@ from starlette.responses import Response
 from app.core.logging import get_logger, request_id_ctx
 
 REQUEST_ID_HEADER = "X-Request-ID"
+#: Correlation IDs are echoed into logs and stored in the audit trail, so only
+#: a short, log-safe token is accepted from the client.
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 
 logger = get_logger(__name__)
 
@@ -23,7 +27,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
+        incoming = request.headers.get(REQUEST_ID_HEADER)
+        request_id = (
+            incoming
+            if incoming is not None and REQUEST_ID_PATTERN.fullmatch(incoming)
+            else str(uuid.uuid4())
+        )
         token = request_id_ctx.set(request_id)
         started = time.perf_counter()
         try:
